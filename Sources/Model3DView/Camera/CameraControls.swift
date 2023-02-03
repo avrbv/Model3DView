@@ -52,7 +52,8 @@ public struct OrbitControls<C: Camera>: CameraControls {
 	private let center: Vector3 = [0, 0, 0]
 	
 	// Values to apply to the camera.
-	@State private var rotation = CGPoint()
+    @State private var cameraRotation = CGPoint()
+    @Binding private var rotation: CGPoint
 	@State private var distance: CGFloat = 50
 
 	// Keeping track of gestures.
@@ -73,7 +74,8 @@ public struct OrbitControls<C: Camera>: CameraControls {
 		maxYaw: Angle = .degrees(.infinity),
 		minZoom: CGFloat = 1,
 		maxZoom: CGFloat = 10,
-		friction: CGFloat = 0.1
+		friction: CGFloat = 0.1,
+        rotation: Binding<CGPoint>
 	) {
 		self.camera = camera
 		self.sensitivity = max(sensitivity, 0.01)
@@ -84,7 +86,7 @@ public struct OrbitControls<C: Camera>: CameraControls {
 		self.minZoom = minZoom
 		self.maxZoom = maxZoom
 		self.friction = clamp(friction, 0.01, 0.99)
-		
+        self._rotation = rotation
 		// TODO: Set initial `rotation` and `zoom` based on the Camera's values.
 		_distance = State(initialValue: CGFloat(length(camera.wrappedValue.position)))
 	}
@@ -128,22 +130,37 @@ public struct OrbitControls<C: Camera>: CameraControls {
 
 	// Updating the camera and other values at a per-tick rate.
 	private func tick(frame: DisplayLink.Frame? = nil) {
-		rotation.x = clamp(rotation.x + velocityPan.x, minYaw.degrees, maxYaw.degrees)
-		rotation.y = clamp(rotation.y + velocityPan.y, minPitch.degrees, maxPitch.degrees)
+        
+//        rotation.x = rotation.x.remainder(dividingBy: 360)
+        cameraRotation.x = clamp(cameraRotation.x, minYaw.degrees, maxYaw.degrees)
+        cameraRotation.y = clamp(cameraRotation.y, minPitch.degrees, maxPitch.degrees)
+        rotation.x = clamp(rotation.x + velocityPan.x, minYaw.degrees, maxYaw.degrees)
+        rotation.y = clamp(rotation.y + velocityPan.y, minPitch.degrees, maxPitch.degrees)
 		distance = clamp(distance + velocityZoom, minZoom, maxZoom)
 		
-		let theta = rotation.x * (.pi / 180)
-		let phi = rotation.y * (.pi / 180)
-		camera.wrappedValue.position.x = Float(distance * -sin(theta) * cos(phi))
-		camera.wrappedValue.position.y = Float(distance * -sin(phi))
-		camera.wrappedValue.position.z = Float(-distance * cos(theta) * cos(phi))
+        let xDif = (cameraRotation.x-rotation.x).remainder(dividingBy: 360)/30
+        let yDif = (cameraRotation.y-rotation.y).remainder(dividingBy: 360)/30
+        
+        cameraRotation.x = (cameraRotation.x - xDif).remainder(dividingBy: 360)
+        cameraRotation.y = (cameraRotation.y - yDif).remainder(dividingBy: 360)
+        
+		let theta = cameraRotation.x * (.pi / 180)
+		let phi = cameraRotation.y * (.pi / 180)
+        
+        let epsilon: CGFloat = 0.0001
+        
+		camera.wrappedValue.position.x = Float(distance * -sin(theta+epsilon) * cos(phi+epsilon))
+		camera.wrappedValue.position.y = Float(distance * -sin(phi+epsilon))
+		camera.wrappedValue.position.z = Float(-distance * cos(theta+epsilon) * cos(phi+epsilon))
+        
 		camera.wrappedValue.lookAt(center: center)
 		
-		let epsilon: CGFloat = 0.0001
-		isAnimating = abs(velocityPan.x) > epsilon || abs(velocityPan.y) > epsilon || abs(velocityZoom) > epsilon
+		
+        
+        isAnimating = abs(velocityPan.x) > epsilon || abs(velocityPan.y) > epsilon || abs(velocityZoom) > epsilon || abs(xDif) > epsilon || abs(yDif) > epsilon
 		
 		// Apply deceleration to the velocity.
-		let deceleration = 1 - friction
+        let deceleration = 1 - friction
 		velocityPan.x *= deceleration
 		velocityPan.y *= deceleration
 		velocityZoom *= deceleration
@@ -152,8 +169,17 @@ public struct OrbitControls<C: Camera>: CameraControls {
 	public func body(content: Content) -> some View {
 		content
 			.gesture(dragGesture.exclusively(before: pinchGesture))
-			.onAppear { tick() }
+			.onAppear {
+                cameraRotation = rotation
+                tick()
+            }
 			.camera(camera.wrappedValue)
+            .onChange(of: rotation, perform: { _ in
+                isAnimating = true
+            })
 			.onFrame(isActive: isAnimating, tick)
+//            .onChange(of: [cameraRotation, rotation], perform: { values in
+//                print("cR: \(values[0]), r: \(values[1])")
+//            })
 	}
 }

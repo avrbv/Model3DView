@@ -185,6 +185,7 @@ extension Vector3: VectorArithmetic {
 	public var magnitudeSquared: Double {
 		Double(length_squared(self))
 	}
+    
 }
 
 extension SIMD4: AdditiveArithmetic where Scalar: FloatingPoint {}
@@ -211,4 +212,10 @@ extension Quaternion: VectorArithmetic {
 	public static var zero: Quaternion {
 		[0, 0, 0, 0]
 	}
+}
+
+extension CGPoint{
+    static func -(lhs: CGPoint, rhs: CGPoint) -> CGPoint {
+        return CGPoint(x: lhs.x - rhs.x, y: lhs.y - rhs.y)
+    }
 }
