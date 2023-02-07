@@ -90,7 +90,7 @@ public struct Model3DView: ViewRepresentable {
 		let screenScale = UIScreen.main.scale
 		#endif
 
-		view.antialiasingMode = screenScale > 2 ? .none : .multisampling2X
+		view.antialiasingMode = screenScale > 2 ? .multisampling2X : .multisampling4X
 
 		context.coordinator.camera = context.environment.camera
 		context.coordinator.setView(view)
